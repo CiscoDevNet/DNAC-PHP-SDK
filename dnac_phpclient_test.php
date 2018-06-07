@@ -24,29 +24,40 @@ $password = ""; // Administrator password for DNA Center
 $validateSSLCert = false; // Enable/Disable SSL Certificate Verification (Default false)
 
 try {
+	// Create a HTTP Client Object
 	$client = new GuzzleHttp\Client([
 		'allow_redirects' => false,
 		'cookies'         => true,
 		'verify' 	  => $validateSSLCert
 	]);
-	$response = $client->get("https://" . $DNACHost . "/api/system/v1/auth/login", [
-		'auth' => [
-			$username, 
-			$password
-		]
-	]);
 	
-	echo "\n";
-	echo "Authenticated with DNAC instance at " . $DNACHost . ".\n\n";
-	
+	// Create a Configuration Object containing the Host, Username, & Password
 	$config = new cisco\com\dnac\v1\api\client\Configuration();
 	$config->setHost("https://" . $DNACHost);
 	$config->setUsername($username);
 	$config->setPassword($password);
 	
+	// Create a MiscApi Object we will use to retrieve the Auth Token for subsequent requests
+	$misc = new cisco\com\dnac\v1\api\client\api\MiscApi($client, $config);
+	$tokenRequest = new cisco\com\dnac\v1\api\client\model\GenerateTokenRequest();
+	$tokenResponse = $misc->postAuthToken($tokenRequest,  "Basic " . base64_encode($username . ":" . $password));
+	
+	// Get the auth token value
+	$theToken = $tokenResponse->getToken();
+	
+	echo "\nAuthenticated with DNA Center instance at " . $DNACHost . ".\n\n";
+		  
+	// Recreate the HTTP Client object with a default header containing the Auth token
+	$client = new GuzzleHttp\Client([
+		'allow_redirects' => false,
+		'cookies'         => true,
+		'verify' 	  => $validateSSLCert,
+		'headers' 	  => ['X-AUTH-TOKEN' => $theToken]
+	]);
+
 	$apiObj = new cisco\com\dnac\v1\api\client\api\NetworkDeviceApi($client, $config);
 	
-	echo "Fetching Device Inventory from DNAC ...\n";
+	echo "Fetching Device Inventory from DNA Center ...\n";
 	
 	$responseObj = $apiObj->getNetworkDeviceCount();
 	$deviceCount = $responseObj->getResponse();
